@@ -1,0 +1,41 @@
+{
+  "info": {
+    "name": "Sentinel AI - API",
+    "description": "Pruebas del backend de Sentinel AI (Entrega 1)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:8080" }],
+  "item": [
+    {
+      "name": "Estado de la API y la base de datos",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/estado" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+        "pm.test('PostgreSQL con 11 tablas', () => pm.expect(pm.response.json().tablas).to.eql(11));"
+      ]}}]
+    },
+    {
+      "name": "Listar categorías",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/categorias" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+        "pm.test('Devuelve 6 categorías', () => pm.expect(pm.response.json().length).to.eql(6));"
+      ]}}]
+    },
+    {
+      "name": "Obtener categoría por id",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/categorias/2" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+        "pm.test('Es Incendio', () => pm.expect(pm.response.json().nombre).to.eql('Incendio'));"
+      ]}}]
+    },
+    {
+      "name": "Categoría inexistente (404)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/categorias/99" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Responde 404', () => pm.response.to.have.status(404));"
+      ]}}]
+    }
+  ]
+}
