@@ -1,11 +1,14 @@
 package com.sentinelai.controller;
 
+import com.sentinelai.config.SecurityConfig;
 import com.sentinelai.dto.CategoriaDTO;
 import com.sentinelai.exception.RecursoNoEncontradoException;
+import com.sentinelai.security.JwtService;
 import com.sentinelai.service.CategoriaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -16,10 +19,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CategoriaController.class)
+@Import(SecurityConfig.class)
 class CategoriaControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean CategoriaService service;
+    @MockitoBean JwtService jwtService;
 
     @Test
     void listarDevuelveCategorias() throws Exception {
