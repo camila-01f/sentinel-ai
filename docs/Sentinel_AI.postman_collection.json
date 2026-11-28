@@ -54,6 +54,10 @@
                      {
                          "key":  "clasificacionIA",
                          "value":  ""
+                     },
+                     {
+                         "key":  "iaIncidenteId",
+                         "value":  ""
                      }
                  ],
     "item":  [
@@ -1218,9 +1222,48 @@
                               ]
                  },
                  {
-                     "description":  "Ejecutar 01 con Gemini activo y 02 con Gemini desactivado. Para 03 usar un incidente de prueba pendiente. Ejecutar 03 a 07 en orden. Para 08 crear otro incidente pendiente y repetir 03 antes de corregir. Los IDs de usuario son datos locales de prueba; la autenticacion JWT esta pendiente de integracion.",
-                     "name":  "Inteligencia Artificial - Entrega 2",
+                     "description":  "Pruebas IA con JWT. Ejecutar primero los logins. Prueba 01 con Gemini activo y prueba 02 con Gemini desactivado. Las demas pruebas pueden ejecutarse en ambos modos.",
+                     "name":  "5. Inteligencia artificial",
                      "item":  [
+                                  {
+                                      "name":  "00 - Registrar incidente para pruebas IA",
+                                      "request":  {
+                                                      "method":  "POST",
+                                                      "auth":  {
+                                                                   "type":  "bearer",
+                                                                   "bearer":  [
+                                                                                  {
+                                                                                      "key":  "token",
+                                                                                      "value":  "{{tokenAgente}}",
+                                                                                      "type":  "string"
+                                                                                  }
+                                                                              ]
+                                                               },
+                                                      "header":  [
+                                                                     {
+                                                                         "key":  "Content-Type",
+                                                                         "value":  "application/json"
+                                                                     }
+                                                                 ],
+                                                      "url":  "{{baseUrl}}/api/incidentes",
+                                                      "body":  {
+                                                                   "mode":  "raw",
+                                                                   "raw":  "{\"uuid\":\"{{$guid}}\",\"descripcion\":\"Una vivienda esta en llamas y hay una persona atrapada\",\"origen\":\"TEXTO\",\"latitud\":13.6929,\"longitud\":-89.2182,\"referencia\":\"Prueba IA\"}"
+                                                               }
+                                                  },
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "type":  "text/javascript",
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027HTTP 201\u0027, () =\u003e pm.response.to.have.status(201));",
+                                                                                    "pm.collectionVariables.set(\u0027iaIncidenteId\u0027, pm.response.json().id);"
+                                                                                ]
+                                                                   }
+                                                    }
+                                                ]
+                                  },
                                   {
                                       "request":  {
                                                       "body":  {
@@ -1320,7 +1363,7 @@
                                   {
                                       "request":  {
                                                       "body":  {
-                                                                   "raw":  "{\"incidenteId\":{{incidenteId}},\"categoriaId\":2,\"prioridadId\":1,\"justificacion\":\"Incendio con riesgo para personas.\",\"fuente\":\"REGLAS\"}",
+                                                                   "raw":  "{\"incidenteId\":{{iaIncidenteId}},\"categoriaId\":2,\"prioridadId\":1,\"justificacion\":\"Incendio con riesgo para personas.\",\"fuente\":\"REGLAS\"}",
                                                                    "options":  {
                                                                                    "raw":  {
                                                                                                "language":  "json"
@@ -1515,6 +1558,52 @@
                                                         "script":  {
                                                                        "exec":  [
                                                                                     "pm.test(\u0027HTTP 409\u0027, () =\u003e pm.response.to.have.status(409));"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   },
+                                                        "listen":  "test"
+                                                    }
+                                                ]
+                                  },
+                                  {
+                                      "request":  {
+                                                      "body":  {
+                                                                   "raw":  "{\"incidenteId\":{{iaIncidenteId}},\"categoriaId\":2,\"prioridadId\":1,\"justificacion\":\"Incendio con riesgo para personas.\",\"fuente\":\"REGLAS\"}",
+                                                                   "options":  {
+                                                                                   "raw":  {
+                                                                                               "language":  "json"
+                                                                                           }
+                                                                               },
+                                                                   "mode":  "raw"
+                                                               },
+                                                      "method":  "POST",
+                                                      "url":  "{{baseUrl}}/api/ia/sugerencias",
+                                                      "header":  [
+                                                                     {
+                                                                         "key":  "Content-Type",
+                                                                         "value":  "application/json"
+                                                                     }
+                                                                 ],
+                                                      "auth":  {
+                                                                   "type":  "bearer",
+                                                                   "bearer":  [
+                                                                                  {
+                                                                                      "key":  "token",
+                                                                                      "value":  "{{token}}",
+                                                                                      "type":  "string"
+                                                                                  }
+                                                                              ]
+                                                               }
+                                                  },
+                                      "name":  "07b - Guardar segunda sugerencia pendiente",
+                                      "event":  [
+                                                    {
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027HTTP 201\u0027, () =\u003e pm.response.to.have.status(201));",
+                                                                                    "const r = pm.response.json();",
+                                                                                    "pm.test(\u0027Sugerencia pendiente\u0027, () =\u003e pm.expect(r.aceptada).to.eql(null));",
+                                                                                    "pm.collectionVariables.set(\u0027sugerenciaId\u0027, r.id);"
                                                                                 ],
                                                                        "type":  "text/javascript"
                                                                    },
