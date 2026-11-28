@@ -3,58 +3,17 @@ package com.ujmd.sentinelai
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
-
-// Modelo que coincide con la tabla 'categorias' de PostgreSQL
-data class Categoria(
-    val id: Long,
-    val nombre: String,
-    val descripcion: String? = null
-)
-
-// Endpoint GET /api/categorias
-interface SentinelApiService {
-    @GET("api/categorias")
-    suspend fun obtenerCategorias(): List<Categoria>
-}
-
-// Cliente Retrofit
-object RetrofitClient {
-    // AQUÍ VA LA URL DEL BACKEND DE CAMILA (ej. https://xxxx.ngrok-free.app/)
-    // NO pongas el link de GitHub aquí. Debe terminar siempre en "/"
-    private const val BASE_URL = "http://10.0.2.2:8080/"
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .addHeader("ngrok-skip-browser-warning", "true")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
-
-    val api: SentinelApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(SentinelApiService::class.java)
-    }
-}
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,105 +21,102 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    CategoriasScreen()
+                    SentinelAppNavigation()
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoriasScreen() {
-    var categorias by remember { mutableStateOf<List<Categoria>>(emptyList()) }
-    var cargando by remember { mutableStateOf(true) }
-    var errorMensaje by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+fun SentinelAppNavigation() {
+    val context = LocalContext.current
+    val storage = remember { SessionManager(context) }
+    val apiProvider = remember { { RetrofitClient.create(storage) } }
 
-    fun cargarDatos() {
-        scope.launch {
-            cargando = true
-            errorMensaje = null
-            try {
-                categorias = RetrofitClient.api.obtenerCategorias()
-            } catch (e: Exception) {
-                errorMensaje = "Error de conexión con backend:\n${e.localizedMessage}"
-            } finally {
-                cargando = false
-            }
-        }
-    }
+    val loginVm = remember { LoginViewModel(apiProvider, storage) }
+    val incidentesVm = remember { IncidentesViewModel(apiProvider) }
+    val recursosVm = remember { RecursosViewModel(apiProvider) }
 
-    LaunchedEffect(Unit) {
-        cargarDatos()
-    }
+    val navController = rememberNavController()
+    var incidenteSeleccionado by remember { mutableStateOf<Incidente?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Sentinel AI — Catálogo de Categorías") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+    val startDestination = if (!storage.getToken().isNullOrBlank()) "incidentes" else "login"
+
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable("login") {
+            LoginScreen(
+                viewModel = loginVm,
+                storage = storage,
+                onLoginSuccess = {
+                    navController.navigate("incidentes") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
             )
         }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                cargando -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Consultando GET /api/categorias...")
+
+        composable("incidentes") {
+            IncidentesListScreen(
+                viewModel = incidentesVm,
+                storage = storage,
+                onNuevoIncidente = { navController.navigate("nuevo_incidente") },
+                onVerDetalle = { inc ->
+                    incidenteSeleccionado = inc
+                    navController.navigate("detalle_incidente")
+                },
+                onIrRecursos = { navController.navigate("recursos") },
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo("incidentes") { inclusive = true }
                     }
                 }
-                errorMensaje != null -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = errorMensaje!!,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(onClick = { cargarDatos() }) {
-                            Text("Reintentar conexión")
-                        }
+            )
+        }
+
+        composable("nuevo_incidente") {
+            NuevoIncidenteScreen(
+                viewModel = incidentesVm,
+                onBack = { navController.popBackStack() },
+                onIrRevisionIa = { nuevoId ->
+                    navController.navigate("revision_ia/$nuevoId") {
+                        popUpTo("nuevo_incidente") { inclusive = true }
                     }
                 }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(categorias) { categoria ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "${categoria.id}. ${categoria.nombre}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    if (!categoria.descripcion.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = categoria.descripcion,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            )
+        }
+
+        composable("detalle_incidente") {
+            incidenteSeleccionado?.let { inc ->
+                DetalleIncidenteScreen(
+                    incidente = inc,
+                    onBack = { navController.popBackStack() },
+                    onIrRevisionIa = { id -> navController.navigate("revision_ia/$id") }
+                )
             }
+        }
+
+        composable("recursos") {
+            RecursosScreen(
+                viewModel = recursosVm,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // Ruta lista para que el Integrante C conecte su pantalla de Revisión IA
+        composable(
+            route = "revision_ia/{incidenteId}",
+            arguments = listOf(navArgument("incidenteId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getLong("incidenteId") ?: 0L
+            RevisionIaBridgeScreen(
+                incidenteId = id,
+                onBack = {
+                    navController.navigate("incidentes") {
+                        popUpTo("incidentes") { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }
