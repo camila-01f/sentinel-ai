@@ -42,7 +42,11 @@ public class ClasificacionReglasService {
             justificacion = "Se detectaron indicios de inundacion.";
 
         } else if (contiene(texto, "arbol caido", "poste caido",
-                   "muro caido", "derrumbe", "estructura caida")) {
+                   "muro caido", "derrumbe", "estructura caida",
+                   "poste electrico cayo", "poste cayo",
+                   "cayo un poste", "arbol cayo",
+                   "cayo un arbol", "arbol derribado",
+                   "poste derribado", "muro colapsado")) {
             categoriaId = 4L;
             categoria = "\u00c1rbol o estructura ca\u00edda";
             prioridadId = 3L;
@@ -61,6 +65,13 @@ public class ClasificacionReglasService {
                 "infarto", "riesgo de muerte")) {
             prioridadId = 1L;
             justificacion += " Posible riesgo grave para las personas.";
+        }
+
+        if (categoriaId == 4L && prioridadId == 3L &&
+                contiene(texto, "bloquea", "obstruye", "via cerrada",
+                         "impide el paso", "calle bloqueada")) {
+            prioridadId = 2L;
+            justificacion += " Se detecto una obstruccion de la via.";
         }
 
         prioridad = switch ((int) prioridadId) {
