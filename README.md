@@ -50,19 +50,55 @@ mvn spring-boot:run
 
 ### 4. Probar
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/estado` | Estado de la API y de la conexión a PostgreSQL |
-| GET | `/api/categorias` | Catálogo de categorías de incidentes |
-| GET | `/api/categorias/{id}` | Una categoría (404 si no existe) |
+Importar `docs/Sentinel_AI.postman_collection.json` en Postman y ejecutarla en orden (Runner). Los logins guardan los tokens automáticamente.
 
-La colección `docs/Sentinel_AI.postman_collection.json` incluye estas peticiones con pruebas automáticas.
-
-Pruebas unitarias del backend:
+Pruebas automáticas del backend:
 
 ```bash
 cd backend
 mvn test
+```
+
+## Autenticación
+
+1. `POST /api/auth/login` con `{"correo": "...", "password": "..."}` devuelve un token JWT.
+2. Las demás peticiones envían el encabezado `Authorization: Bearer <token>`.
+3. El token dura 8 horas (`JWT_EXPIRACION_MINUTOS`). En producción se debe definir la variable `JWT_SECRET` (Base64, mínimo 32 bytes).
+
+Errores: `401` sin token o token inválido, `403` cuando el rol no tiene permiso. Todos los errores responden con el mismo formato JSON (`fecha`, `estado`, `error`, `mensaje` y, en validaciones, `campos`).
+
+## Endpoints
+
+| Método | Endpoint | Acceso | Descripción |
+|--------|----------|--------|-------------|
+| POST | `/api/auth/login` | Público | Inicia sesión y devuelve el token |
+| GET | `/api/auth/yo` | Autenticado | Usuario dueño del token |
+| GET | `/api/estado` | Público | Estado de la API y de PostgreSQL |
+| GET | `/api/categorias`, `/api/categorias/{id}` | Público | Categorías de incidentes |
+| GET | `/api/prioridades`, `/api/estados`, `/api/tipos-recurso` | Público | Catálogos |
+| GET | `/api/recursos?disponible=` | Autenticado | Lista recursos (filtro opcional) |
+| GET | `/api/recursos/{id}` | Autenticado | Un recurso |
+| POST | `/api/recursos` | SUPERVISOR | Crea un recurso |
+| PUT | `/api/recursos/{id}` | SUPERVISOR | Edita un recurso |
+| DELETE | `/api/recursos/{id}` | SUPERVISOR | Elimina un recurso sin asignaciones (409 si tiene) |
+| GET | `/api/incidentes` | Autenticado | Lista incidentes, del más reciente al más antiguo |
+| GET | `/api/incidentes/{id}` | Autenticado | Un incidente |
+| POST | `/api/incidentes` | Autenticado | Registra un incidente (201). Si el `uuid` ya existe devuelve el existente (200) sin duplicar |
+| PUT | `/api/incidentes/{id}` | Autenticado | Edita descripción, referencia, categoría y prioridad |
+| DELETE | `/api/incidentes/{id}` | SUPERVISOR | Elimina el incidente y libera sus recursos |
+
+Ejemplo de registro de incidente:
+
+```json
+{
+  "uuid": "6f1c2a7e-8b3d-4c5e-9a10-1b2c3d4e5f99",
+  "descripcion": "Árbol caído bloquea un carril de la calle principal",
+  "origen": "TEXTO",
+  "latitud": 13.6929,
+  "longitud": -89.2182,
+  "referencia": "Frente al parque central",
+  "categoriaId": 4
+}
 ```
 
 ## Usuarios de prueba
@@ -72,7 +108,7 @@ mvn test
 | Supervisor | supervisor@sentinel.test | Sentinel2026 |
 | Agente | agente@sentinel.test | Sentinel2026 |
 
-Son datos ficticios para pruebas. El inicio de sesión con JWT se implementa en la Entrega 2.
+Son datos ficticios para pruebas.
 
 ## Modelo de datos
 

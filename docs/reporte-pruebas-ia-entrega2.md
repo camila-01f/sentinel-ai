@@ -69,3 +69,12 @@ Rama: feature/entrega2-ia
 
 Pull Request:
 https://github.com/camila-01f/sentinel-ai/pull/16
+## Actualizacion de integracion - 19:11
+
+- Backend oficial integrado desde main (PR #17).
+- Conflicto de Postman resuelto conservando ambas colecciones.
+- Identidad del supervisor obtenida del JWT.
+- 35 pruebas automatizadas ejecutadas.
+- 0 fallos, 0 errores, 0 omitidas.
+- BUILD SUCCESS.
+- Pendiente: pruebas funcionales IA con JWT y Android.

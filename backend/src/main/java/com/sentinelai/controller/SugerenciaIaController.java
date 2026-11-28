@@ -4,6 +4,8 @@ import com.sentinelai.dto.SugerenciaIaRequest;
 import com.sentinelai.dto.ValidacionIaRequest;
 import com.sentinelai.service.SugerenciaIaService;
 import jakarta.validation.Valid;
+import com.sentinelai.security.UsuarioAutenticado;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -38,8 +40,9 @@ public class SugerenciaIaController {
     @PostMapping("/{id}/validar")
     public Map<String, Object> validar(
         @PathVariable Long id,
-        @Valid @RequestBody ValidacionIaRequest request
+        @Valid @RequestBody ValidacionIaRequest request,
+        @AuthenticationPrincipal UsuarioAutenticado usuario
     ) {
-        return servicio.validar(id, request);
+        return servicio.validar(id, request, usuario.id().longValue());
     }
 }

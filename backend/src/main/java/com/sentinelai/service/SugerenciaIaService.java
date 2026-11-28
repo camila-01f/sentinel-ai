@@ -69,7 +69,7 @@ public class SugerenciaIaService {
 
     @Transactional
     public Map<String, Object> validar(
-        Long id, ValidacionIaRequest r
+        Long id, ValidacionIaRequest r, Long usuarioId
     ) {
 
         // 1. Comprobar que el usuario sea un supervisor activo.
@@ -79,7 +79,7 @@ public class SugerenciaIaService {
             JOIN roles rol ON rol.id = u.rol_id
             WHERE u.id = ? AND u.activo = TRUE
             FOR UPDATE OF u
-            """, r.usuarioId());
+            """, usuarioId);
 
         if (usuarios.isEmpty()) {
             throw new ResponseStatusException(
@@ -197,7 +197,7 @@ public class SugerenciaIaService {
             VALUES (?, ?, ?, ?, ?)
             """,
             incidenteId,
-            r.usuarioId(),
+            usuarioId,
             estadoActual,
             estadoActual,
             comentario
