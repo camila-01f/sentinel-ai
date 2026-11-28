@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+
 import java.util.Map;
 import java.util.List;
 
@@ -71,14 +72,43 @@ public class SugerenciaIaService {
         Long id, ValidacionIaRequest r
     ) {
 
-        List<Map<String, Object>> filas = jdbc.queryForList(
-            "SELECT * FROM sugerencias_ia WHERE id = ? FOR UPDATE",
-            id
-        );
+        // 1. Comprobar que el usuario sea un supervisor activo.
+        List<Map<String, Object>> usuarios = jdbc.queryForList("""
+            SELECT u.id, rol.nombre AS rol
+            FROM usuarios u
+            JOIN roles rol ON rol.id = u.rol_id
+            WHERE u.id = ? AND u.activo = TRUE
+            FOR UPDATE OF u
+            """, r.usuarioId());
+
+        if (usuarios.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Supervisor no encontrado o inactivo"
+            );
+        }
+
+        if (!"SUPERVISOR".equals(usuarios.get(0).get("rol"))) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Solo un supervisor puede validar sugerencias"
+            );
+        }
+
+        // 2. Bloquear la sugerencia y su incidente.
+        List<Map<String, Object>> filas = jdbc.queryForList("""
+            SELECT s.*,
+                   i.estado_id AS estado_incidente
+            FROM sugerencias_ia s
+            JOIN incidentes i ON i.id = s.incidente_id
+            WHERE s.id = ?
+            FOR UPDATE OF s, i
+            """, id);
 
         if (filas.isEmpty()) {
             throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "Sugerencia no encontrada"
+                HttpStatus.NOT_FOUND,
+                "Sugerencia no encontrada"
             );
         }
 
@@ -86,7 +116,8 @@ public class SugerenciaIaService {
 
         if (original.get("aceptada") != null) {
             throw new ResponseStatusException(
-                HttpStatus.CONFLICT, "Sugerencia ya validada"
+                HttpStatus.CONFLICT,
+                "Sugerencia ya validada"
             );
         }
 
@@ -96,17 +127,33 @@ public class SugerenciaIaService {
         long prioridad = ((Number) original.get(
             "prioridad_sugerida_id")).longValue();
 
+        long incidenteId = ((Number) original.get(
+            "incidente_id")).longValue();
+
+        int estadoActual = ((Number) original.get(
+            "estado_incidente")).intValue();
+
         boolean coincide =
             categoria == r.categoriaId() &&
             prioridad == r.prioridadId();
 
-        if (r.aceptada() != coincide) {
+        // 3. Aceptar exige conservar la propuesta.
+        // Rechazar exige que exista una corrección.
+        if (r.aceptada() && !coincide) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "La decision no coincide con los valores enviados"
+                "Para aceptar debes conservar categoría y prioridad sugeridas"
             );
         }
 
+        if (!r.aceptada() && coincide) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Para rechazar debes modificar categoría o prioridad"
+            );
+        }
+
+        // 4. Aplicar la clasificación validada.
         jdbc.update("""
             UPDATE incidentes
             SET categoria_id = ?, prioridad_id = ?
@@ -114,15 +161,46 @@ public class SugerenciaIaService {
             """,
             r.categoriaId(),
             r.prioridadId(),
-            original.get("incidente_id")
+            incidenteId
         );
 
+        // 5. Guardar el resultado de la revisión.
         jdbc.update("""
             UPDATE sugerencias_ia
             SET aceptada = ?
             WHERE id = ?
             """,
             r.aceptada(), id
+        );
+
+        // 6. Registrar la decisión en la bitácora.
+        String comentario;
+
+        if (r.aceptada()) {
+            comentario = "Supervisor aceptó la sugerencia IA #" + id
+                + ". Categoría y prioridad confirmadas.";
+        } else {
+            comentario = "Supervisor rechazó la sugerencia IA #" + id
+                + ". Clasificación corregida. Categoría: "
+                + r.categoriaId() + ", prioridad: "
+                + r.prioridadId() + ".";
+        }
+
+        jdbc.update("""
+            INSERT INTO bitacora (
+                incidente_id,
+                usuario_id,
+                estado_anterior_id,
+                estado_nuevo_id,
+                comentario
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            incidenteId,
+            r.usuarioId(),
+            estadoActual,
+            estadoActual,
+            comentario
         );
 
         return consultar(id);
